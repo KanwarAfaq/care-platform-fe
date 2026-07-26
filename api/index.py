@@ -33,7 +33,7 @@ app.add_middleware(
 class UserProfile(BaseModel):
     cms_level: int
     income_status: str
-
+@app.post("/api/webhook")
 @app.post("/api/calculate-subsidy")
 def calculate_subsidy(profile: UserProfile):
     # Your existing subsidy logic...
