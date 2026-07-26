@@ -51,11 +51,7 @@ export default function WizardForm() {
   };
 
   // Helper to generate a Google Maps search URL based on address
-  const getGoogleMapUrl = (address: string) => {
-    const encodedAddress = encodeURIComponent(address);
-    // Using the free tier search embed - no API key required for basic display
-    return `https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY_HERE&q=${encodedAddress}`;
-  };
+
 
   // Fallback safe URL for when we don't have an API key configured yet
   const getSafeMapEmbed = (address: string) => {
