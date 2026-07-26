@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client, Client
@@ -19,9 +19,6 @@ line_bot_api = LineBotApi(os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
 app = FastAPI()
-@app.get("/")
-def read_root():
-    return {"status": "Taoyuan Care Platform Backend is running!"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,10 +30,15 @@ app.add_middleware(
 class UserProfile(BaseModel):
     cms_level: int
     income_status: str
-@app.post("/api/webhook")
+
+@app.get("/")
+@app.get("/api")
+def read_root():
+    return {"status": "Taoyuan Care Platform Backend is running!"}
+
+# --- Subsidy Calculation Endpoint ---
 @app.post("/api/calculate-subsidy")
 def calculate_subsidy(profile: UserProfile):
-    # Your existing subsidy logic...
     care_caps = {2: 10020, 3: 15460, 4: 18580, 5: 24100, 6: 28070, 7: 32090, 8: 36180}
     copay_rates = {"general": 0.16, "mid_low": 0.05, "low": 0.0}
     care_cap = care_caps.get(profile.cms_level, 0)
@@ -49,38 +51,8 @@ def calculate_subsidy(profile: UserProfile):
         "user_copay": round(user_pays)
     }
 
-# --- Background Task for LINE Reply ---
-def process_line_message(event):
-    user_text = event.message.text
-    
-    try:
-        if "日照" in user_text or "長照" in user_text or "推薦" in user_text:
-            response = supabase.table('care_centers').select('name, address, phone').limit(3).execute()
-            centers = response.data
-            
-            if centers:
-                reply_text = "這裡為您推薦桃園區的機構：\n\n"
-                for c in centers:
-                    reply_text += f"🏠 {c['name']}\n📍 {c['address']}\n📞 {c['phone']}\n\n"
-                reply_text += "想要看更多詳細資訊嗎？點擊這裡：[您的網址]"
-            else:
-                reply_text = "目前資料庫中沒有找到相關資料。"
-                
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=reply_text)
-            )
-        else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="您好！我是桃園長照導航站。請輸入您的需求（例如：「推薦日照中心」），我會為您尋找適合的機構。")
-            )
-    except Exception as e:
-        print(f"Error processing message: {e}")
-
-# --- LINE Bot Webhook Endpoint ---
-# --- Serverless-Optimized LINE Webhook ---
-@app.post("/webhook")
+# --- Serverless-Optimized LINE Webhook Endpoint ---
+@app.post("/api/webhook")
 async def callback(request: Request):
     signature = request.headers.get('X-Line-Signature')
     if not signature:
@@ -104,7 +76,7 @@ async def callback(request: Request):
                         reply_text = "這裡為您推薦桃園區的機構：\n\n"
                         for c in centers:
                             reply_text += f"🏠 {c['name']}\n📍 {c['address']}\n📞 {c['phone']}\n\n"
-                        reply_text += "想要看更多詳細資訊嗎？點擊這裡：[您的網址]"
+                        reply_text += "想要看更多詳細資訊嗎？請造訪我們的平台。"
                     else:
                         reply_text = "目前資料庫中沒有找到相關資料。"
                         
