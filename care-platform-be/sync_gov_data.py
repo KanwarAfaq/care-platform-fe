@@ -4,14 +4,16 @@ import pandas as pd
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-# Load Supabase credentials from a .env file
 load_dotenv()
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
+
+if not url or not key:
+    raise ValueError("Missing Supabase URL or Key in .env file.")
+
 supabase: Client = create_client(url, key)
 
 class EvidenceAuditLog:
-    """Tracks and validates dataset consistency before database insertion."""
     def __init__(self):
         self.errors = []
         self.processed = 0
@@ -20,83 +22,93 @@ class EvidenceAuditLog:
     def validate_record(self, record: dict, index: int) -> bool:
         self.processed += 1
         
-        # Recalculate and verify numerical metrics
-        try:
-            capacity = int(record.get('立案床數', 0))
-            if capacity < 0:
-                self.errors.append(f"Row {index} [{record.get('機構名稱')}]: Mathematical inconsistency detected (Negative capacity).")
-                return False
-        except ValueError:
-            self.errors.append(f"Row {index} [{record.get('機構名稱')}]: Capacity is not a valid number.")
+        if not record.get('name'):
+            self.errors.append(f"Row {index}: Missing critical claims (Name).")
             return False
-
-        # Ensure essential fields exist
-        if not record.get('機構名稱') or not record.get('地址'):
-            self.errors.append(f"Row {index}: Missing critical claims (Name or Address).")
+            
+        if not record.get('address'):
+            self.errors.append(f"Row {index}: Missing critical claims (Address).")
             return False
 
         self.passed += 1
         return True
 
     def report(self):
-        print("\n--- Data Audit Log Report ---")
+        print("\n--- Live Government Data Audit Log ---")
         print(f"Total Processed: {self.processed}")
         print(f"Total Passed:    {self.passed}")
         print(f"Total Failed:    {len(self.errors)}")
         if self.errors:
             print("\nError Evidence:")
-            for err in self.errors[:5]: # Print first 5 errors
+            for err in self.errors[:5]:
                 print(f" - {err}")
-            if len(self.errors) > 5:
-                print(f"   ... and {len(self.errors) - 5} more.")
-        print("-----------------------------\n")
+        print("--------------------------------------\n")
 
 def fetch_and_sync_taoyuan_care_centers():
-    # Taoyuan Long-Term Care Open Data CSV endpoint
-    # (Using a standard open data proxy link for Taoyuan Social Affairs Bureau)
-    csv_url = "https://data.tycg.gov.tw/opendata/datalist/datasetMeta/download?id=f4cc0b12-86ac-40f9-8745-885bddc18c79&rid=541539fb-05dc-42bb-9547-75e18ef5dc04"
+    csv_url = "https://opendata.tycg.gov.tw/api/dataset/7e076556-a8f1-4449-b4de-4389954a25da/resource/f4b17e39-0560-4c2d-815d-b50b15a9880d/download"
     
-    print("Downloading dataset...")
+    print("Establishing connection to Taoyuan Open Data API...")
     try:
-        df = pd.read_csv(csv_url)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(csv_url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        with open("live_gov_data.csv", "wb") as f:
+            f.write(response.content)
+            
+        try:
+            df = pd.read_csv("live_gov_data.csv", encoding='utf-8')
+        except UnicodeDecodeError:
+            try:
+                df = pd.read_csv("live_gov_data.csv", encoding='big5')
+            except UnicodeDecodeError:
+                df = pd.read_csv("live_gov_data.csv", encoding='cp950')
+                
     except Exception as e:
-        print(f"Failed to fetch data: {e}")
+        print(f"Fatal Error: Failed to fetch or decode data: {e}")
         return
-
-    # Filter for Taoyuan City just in case the dataset contains other regions
-    if '鄉鎮市區' in df.columns:
-        df = df.dropna(subset=['鄉鎮市區'])
 
     audit = EvidenceAuditLog()
     valid_records = []
 
-    print("Auditing claims and extracting features...")
+    print("Executing exact-match feature extraction...")
     for index, row in df.iterrows():
-        record = row.to_dict()
+        # Hardcoded mapping using the exact diagnostic headers
+        district_val = str(row.get('行政區', '')).strip()
+        if district_val and not district_val.endswith('區'):
+            district_val += '區'
+            
+        extracted_features = {
+            "name": str(row.get('服務單位', '')).strip(),
+            "district": district_val,
+            "address": str(row.get('地址', '')).strip(),
+            "phone": str(row.get('電話', '')).strip(),
+            "care_type": str(row.get('服務項目', '')).strip(),
+            "capacity": 0,  # Column not present in this dataset
+            "evaluation_score": "無資料" # Column not present in this dataset
+        }
         
-        if audit.validate_record(record, index):
-            # Map standard open data columns to our database schema
-            valid_records.append({
-                "name": str(record.get('機構名稱', '')).strip(),
-                "district": str(record.get('鄉鎮市區', '')).strip(),
-                "address": str(record.get('地址', '')).strip(),
-                "phone": str(record.get('電話', '')).strip(),
-                "care_type": str(record.get('收容對象', '未分類')).strip(),
-                "capacity": int(record.get('立案床數', 0)),
-                "evaluation_score": str(record.get('最近1次評鑑成績', '無資料')).strip()
-            })
+        # Skip trailing empty rows often found in government CSVs
+        if extracted_features["name"] == 'nan' or not extracted_features["name"]:
+            continue
+            
+        if audit.validate_record(extracted_features, index):
+            valid_records.append(extracted_features)
 
     audit.report()
 
     if not valid_records:
-        print("No valid records to upload. Aborting sync.")
+        print("Dataset failed validation. No records inserted.")
         return
 
-    print("Pushing validated data to Supabase...")
-    # Batch insert into Supabase
+    print("Syncing validated dataset to Supabase PostgreSQL...")
     try:
+        # Wipe the entire table to remove the ghost "混合型" data
+        supabase.table('care_centers').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        
         response = supabase.table('care_centers').insert(valid_records).execute()
-        print(f"Successfully inserted {len(response.data)} records into the database.")
+        inserted_count = len(response.data) if hasattr(response, 'data') else "unknown number of"
+        print(f"Success! {inserted_count} exact records safely pushed.")
     except Exception as e:
         print(f"Database insertion failed: {e}")
 
