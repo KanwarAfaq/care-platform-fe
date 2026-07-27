@@ -5,10 +5,9 @@
   "type": "module",
 "scripts": {
     "dev": "vite",
-    "build": "mkdir -p dist && echo 'Backend Running' > dist/index.html",
+    "build": "mkdir -p dist && echo \"Backend Running\" > dist/index.html",
     "lint": "eslint .",
     "preview": "vite preview"
-  },
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
