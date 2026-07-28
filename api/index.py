@@ -1,5 +1,5 @@
-
 import os
+import urllib.parse
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -8,22 +8,27 @@ from dotenv import load_dotenv
 
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
 
+# Load environment variables
 load_dotenv()
 
+# Initialize Supabase Client
 supabase_url = os.environ.get("SUPABASE_URL")
 supabase_key = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
 
+# Initialize LINE Bot API
 line_bot_api = LineBotApi(os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
+# Initialize FastAPI
 app = FastAPI()
 
+# Configure CORS for Frontend Integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # Change to ["https://care-platform-fe.vercel.app"] for production security
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -69,23 +74,111 @@ async def callback(request: Request):
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
                 user_text = event.message.text
                 
+                # Check for relevant keywords
                 if "日照" in user_text or "長照" in user_text or "推薦" in user_text:
-                    response = supabase.table('care_centers').select('name, address, phone').limit(3).execute()
+                    
+                    # Fetch up to 5 centers from Supabase to populate the Carousel
+                    response = supabase.table('care_centers').select('*').limit(5).execute()
                     centers = response.data
                     
                     if centers:
-                        reply_text = "這裡為您推薦桃園區的機構：\n\n"
-                        for c in centers:
-                            reply_text += f"🏠 {c['name']}\n📍 {c['address']}\n📞 {c['phone']}\n\n"
-                        reply_text += "想要看更多詳細資訊嗎？請造訪我們的平台。"
-                    else:
-                        reply_text = "目前資料庫中沒有找到相關資料。"
+                        bubbles = []
                         
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        TextSendMessage(text=reply_text)
-                    )
+                        for center in centers:
+                            name = center.get("name", "Unknown")
+                            address = center.get("address", "")
+                            phone = center.get("phone", "")
+                            capacity = center.get("capacity", 0)
+                            
+                            # Safely encode the address for Google Maps
+                            encoded_address = urllib.parse.quote(address)
+                            map_url = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
+                            phone_url = f"tel:{phone}"
+                            
+                            # Build the visual card (Bubble) for each center
+                            bubble = {
+                                "type": "bubble",
+                                "size": "mega",
+                                "body": {
+                                    "type": "box",
+                                    "layout": "vertical",
+                                    "spacing": "sm",
+                                    "contents": [
+                                        {
+                                            "type": "text",
+                                            "text": name,
+                                            "weight": "bold",
+                                            "size": "lg",
+                                            "wrap": True,
+                                            "color": "#111827"
+                                        },
+                                        {
+                                            "type": "text",
+                                            "text": f"📍 {address}",
+                                            "size": "sm",
+                                            "color": "#6B7280",
+                                            "wrap": True,
+                                            "margin": "md"
+                                        },
+                                        {
+                                            "type": "text",
+                                            "text": f"🛏️ 核定容量 (床位/人數): {capacity}",
+                                            "size": "sm",
+                                            "color": "#2563EB",
+                                            "weight": "bold",
+                                            "margin": "sm"
+                                        }
+                                    ]
+                                },
+                                "footer": {
+                                    "type": "box",
+                                    "layout": "horizontal",
+                                    "spacing": "sm",
+                                    "contents": [
+                                        {
+                                            "type": "button",
+                                            "style": "primary",
+                                            "color": "#2563EB",
+                                            "height": "sm",
+                                            "action": {
+                                                "type": "uri",
+                                                "label": "打電話",
+                                                "uri": phone_url
+                                            }
+                                        },
+                                        {
+                                            "type": "button",
+                                            "style": "secondary",
+                                            "height": "sm",
+                                            "action": {
+                                                "type": "uri",
+                                                "label": "看地圖",
+                                                "uri": map_url
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                            bubbles.append(bubble)
+                        
+                        # Wrap all the bubbles in a Carousel and create the FlexSendMessage
+                        reply_message = FlexSendMessage(
+                            alt_text="為您推薦的照護機構",
+                            contents={
+                                "type": "carousel",
+                                "contents": bubbles
+                            }
+                        )
+                        line_bot_api.reply_message(event.reply_token, reply_message)
+                        
+                    else:
+                        # Fallback if the database returns empty
+                        line_bot_api.reply_message(
+                            event.reply_token,
+                            TextSendMessage(text="目前資料庫中沒有找到相關資料。")
+                        )
                 else:
+                    # Default greeting
                     line_bot_api.reply_message(
                         event.reply_token,
                         TextSendMessage(text="您好！我是桃園長照導航站。請輸入您的需求（例如：「推薦日照中心」），我會為您尋找適合的機構。")
