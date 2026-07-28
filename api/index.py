@@ -87,13 +87,19 @@ async def callback(request: Request):
                         for center in centers:
                             name = center.get("name", "Unknown")
                             address = center.get("address", "")
-                            phone = center.get("phone", "")
+                            phone = str(center.get("phone", "")).strip()
                             capacity = center.get("capacity", 0)
-                            
-                            # Safely encode the address for Google Maps
-                            encoded_address = urllib.parse.quote(address)
+
+                            # 1. Safely encode the address (fallback to Taoyuan if empty)
+                            safe_address = address if address else "桃園市"
+                            encoded_address = urllib.parse.quote(safe_address)
                             map_url = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
-                            phone_url = f"tel:{phone}"
+
+                            # 2. Safely encode the phone (fallback to a dummy number if empty to prevent LINE crash)
+                            safe_phone = phone.replace(" ", "").replace("(", "").replace(")", "")
+                            if not safe_phone:
+                                safe_phone = "00000000" # Safe fallback
+                            phone_url = f"tel:{safe_phone}"
                             
                             # Build the visual card (Bubble) for each center
                             bubble = {
