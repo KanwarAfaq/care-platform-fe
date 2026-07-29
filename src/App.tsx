@@ -1,6 +1,8 @@
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import WizardForm from './components/WizardForm';
+import AdminDashboard from './admin/AdminDashboard';
 
-function App() {
+function MainPlatform() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 font-sans text-gray-900">
       <div className="max-w-3xl mx-auto space-y-8">
@@ -11,7 +13,7 @@ function App() {
           <p className="text-gray-500">Taoyuan Long-Term Care Navigator</p>
         </div>
 
-        {/* The Component we just built */}
+        {/* The Wizard Form */}
         <WizardForm />
 
       </div>
@@ -19,4 +21,13 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainPlatform />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+      </Routes>
+    </Router>
+  );
+}
