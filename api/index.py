@@ -1,11 +1,11 @@
 import os
 import urllib.parse
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
-
+from sync_gov_data import fetch_and_sync_data
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
@@ -196,3 +196,18 @@ async def callback(request: Request):
         print(f"Error processing message: {e}")
 
     return 'OK'
+@app.get("/api/sync-government-data")
+def trigger_sync(token: str = Query(None)):
+    # Grab the secret password from Render's environment variables
+    expected_token = os.environ.get("CRON_SECRET")
+    
+    # If the token is missing or wrong, block the request
+    if not expected_token or token != expected_token:
+        raise HTTPException(status_code=401, detail="Unauthorized request")
+    
+    try:
+        # Run the actual data sync
+        fetch_and_sync_data()
+        return {"message": "Database sync successful!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
