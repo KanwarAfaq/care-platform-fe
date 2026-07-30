@@ -206,15 +206,28 @@ async def callback(request: Request):
                 user_text = event.message.text.strip()
                 
                 # Check for explicit greetings
-                if user_text.lower() in ["hi", "hello", "你好", "您好", "選單", "幫助"]:
+                # 1. Handle Rich Menu: Find Centers
+                if user_text == "尋找機構":
                     reply_message = TextSendMessage(
-                        text="您好！我是桃園長照導航站 👵👴\n\n您可以直接輸入：\n1. 行政區 (例如：八德區, 中壢區, 桃園區)\n2. 機構名稱 (例如：旭登, 佳緣)\n3. 服務關鍵字 (例如：日照, 長照)\n\n我會即時為您查詢並回傳機構卡片！"
+                        text="請直接輸入您想查詢的「行政區」或「機構名稱」🔍\n\n例如：\n📍 八德區\n📍 中壢區\n🏥 旭登"
                     )
-                else:
-                    # Dynamically search Supabase for districts, names, or care keywords
-                    reply_message = get_care_center_flex_message(user_text)
                 
-                line_bot_api.reply_message(event.reply_token, reply_message)
+                # 2. Handle Rich Menu: Subsidy Calculator
+                elif user_text == "補助試算":
+                    reply_message = TextSendMessage(
+                        text="💡 歡迎使用長照補助試算！\n請點擊下方連結前往我們的平台進行詳細計算：\n\n🔗 https://care-platform-three.vercel.app" 
+                        # Note: Replace the URL above with your actual React frontend link once deployed!
+                    )
+
+                # 3. Handle explicit greetings
+                elif user_text.lower() in ["hi", "hello", "你好", "您好", "選單", "幫助"]:
+                    reply_message = TextSendMessage(
+                        text="您好！我是桃園長照導航站 👵👴\n\n您可以直接點擊下方選單，或輸入：\n1. 行政區 (例如：八德區)\n2. 機構名稱 (例如：旭登)\n\n我會即時為您查詢並回傳機構卡片！"
+                    )
+                
+                # 4. Default: Search Supabase
+                else:
+                    reply_message = get_care_center_flex_message(user_text)
                     
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
