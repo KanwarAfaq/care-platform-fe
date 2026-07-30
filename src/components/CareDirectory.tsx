@@ -1,15 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+// 1. Define the exact shape of your data for TypeScript
+interface CareCenter {
+  id: string | number;
+  name: string;
+  district: string;
+  address: string;
+  capacity: number;
+  phone: string;
+}
+
 const CareDirectory = () => {
-  const [centers, setCenters] = useState([]);
-  const [filteredCenters, setFilteredCenters] = useState([]);
-  const [districts, setDistricts] = useState([]);
+  // 2. Tell useState to expect an array of CareCenters
+  const [centers, setCenters] = useState<CareCenter[]>([]);
+  const [filteredCenters, setFilteredCenters] = useState<CareCenter[]>([]);
   
-  // Filter States
+  // Tell useState to expect an array of strings for the districts
+  const [districts, setDistricts] = useState<string[]>([]);
+  
+  // Filter States (These strings/booleans are fine as is)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // ... rest of your existing useEffect and return code stays exactly the same!
 
   // 1. Fetch data from Supabase on component mount
   useEffect(() => {
