@@ -9,6 +9,7 @@ interface CareCenter {
   address: string;
   capacity: number;
   phone: string;
+  
 }
 
 const CareDirectory = () => {
