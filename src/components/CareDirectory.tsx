@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 // 1. Define the exact shape of your data for TypeScript
@@ -9,7 +9,7 @@ interface CareCenter {
   address: string;
   capacity: number;
   phone: string;
-  
+
 }
 
 const CareDirectory = () => {
