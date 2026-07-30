@@ -228,6 +228,7 @@ async def callback(request: Request):
                 # 4. Default: Search Supabase
                 else:
                     reply_message = get_care_center_flex_message(user_text)
+                line_bot_api.reply_message(event.reply_token, reply_message)
                     
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
