@@ -69,20 +69,29 @@ def get_care_center_flex_message(search_term: str):
     # 4. Build the Flex Message Carousel
     bubbles = []
     for center in response.data:
-        name = center.get("name", "未命名機構")
-        district = center.get("district", "桃園市")
-        address = center.get("address", "無地址資訊")
-        phone_raw = str(center.get("phone", "")).strip()
-        capacity = center.get("capacity", 0)
+        # 1. Null-safe string extraction
+        name = center.get("name") or "未命名機構"
+        district = center.get("district") or "桃園市"
+        address = center.get("address") or "桃園市"
+        
+        # 2. Null-safe capacity extraction (prevents Python crash)
+        raw_capacity = center.get("capacity")
+        try:
+            capacity = int(raw_capacity) if raw_capacity is not None else 0
+        except (ValueError, TypeError):
+            capacity = 0
+            
+        capacity_text = f"🛏️ 核定床位/容量: {capacity}" if capacity > 0 else "🛏️ 核定床位/容量: 依官方公告"
 
-        # Encode address safely for Google Maps URL
-        safe_address = address if address else "桃園市"
-        map_query = urllib.parse.quote(f"{name} {safe_address}")
-        map_url = f"https://www.google.com/maps/search/?api=1&query={map_query}"
-
-        # Clean phone number for tel: URI
+        # 3. Null-safe phone extraction (prevents LINE API rejection)
+        phone_raw = str(center.get("phone") or "")
         clean_phone = phone_raw.replace(" ", "").replace("(", "").replace(")", "").replace("-", "")
-        phone_url = f"tel:{clean_phone}" if clean_phone else "tel:033322101" # Fallback to Taoyuan Gov Care hotline
+        # Only allow the tel: link if there are actually numbers
+        phone_url = f"tel:{clean_phone}" if clean_phone and clean_phone.isdigit() else "tel:033322101" 
+
+        # 4. Safe map URL
+        map_query = urllib.parse.quote(f"{name} {address}")
+        map_url = f"https://www.google.com/maps/search/?api=1&query={map_query}"
 
         bubble = {
             "type": "bubble",
@@ -93,7 +102,7 @@ def get_care_center_flex_message(search_term: str):
                 "contents": [
                     {
                         "type": "text",
-                        "text": district if district else "桃園市",
+                        "text": district,
                         "color": "#1DB446",
                         "size": "xs",
                         "weight": "bold"
@@ -117,7 +126,7 @@ def get_care_center_flex_message(search_term: str):
                     },
                     {
                         "type": "text",
-                        "text": f"🛏️ 核定床位/容量: {capacity if capacity > 0 else '依官方公告'}",
+                        "text": capacity_text,
                         "size": "xxs",
                         "color": "#2563EB",
                         "weight": "bold",
@@ -154,8 +163,7 @@ def get_care_center_flex_message(search_term: str):
                 ]
             }
         }
-        bubbles.append(bubble)
-
+    bubbles.append(bubble)
     # Wrap all bubbles in a Carousel
     carousel = {
         "type": "carousel",
