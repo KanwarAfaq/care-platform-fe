@@ -163,7 +163,8 @@ def get_care_center_flex_message(search_term: str):
                 ]
             }
         }
-    bubbles.append(bubble)
+
+        bubbles.append(bubble)
     # Wrap all bubbles in a Carousel
     carousel = {
         "type": "carousel",
