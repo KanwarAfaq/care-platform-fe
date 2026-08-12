@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 from sync_gov_data import fetch_and_sync_data
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
-
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, QuickReply, QuickReplyButton, MessageAction
 # Load environment variables
 load_dotenv()
 
@@ -207,9 +206,24 @@ async def callback(request: Request):
                 
                 # Check for explicit greetings
                 # 1. Handle Rich Menu: Find Centers
+                # 1. Handle Rich Menu: Find Centers
                 if user_text == "尋找機構":
+                    # Fetch all districts from the database
+                    db_response = supabase.table("care_centers").select("district").execute()
+                    
+                    # Extract unique districts, filter out empty ones, and limit to 13 (LINE's maximum allowed buttons)
+                    unique_districts = list({item["district"] for item in db_response.data if item.get("district")})[:13]
+                    
+                    # Generate a Quick Reply Button for each district
+                    quick_reply_buttons = [
+                        QuickReplyButton(action=MessageAction(label=district, text=district))
+                        for district in unique_districts
+                    ]
+                    
+                    # Send the message with the dynamic buttons attached
                     reply_message = TextSendMessage(
-                        text="請直接輸入您想查詢的「行政區」或「機構名稱」🔍\n\n例如：\n📍 八德區\n📍 中壢區\n🏥 旭登"
+                        text="請選擇您想查詢的行政區 👇\n(或直接輸入特定機構名稱)",
+                        quick_reply=QuickReply(items=quick_reply_buttons)
                     )
                 
                 # 2. Handle Rich Menu: Subsidy Calculator
