@@ -193,7 +193,7 @@ def get_calc_income_flex(district, level):
     """Step 3: Welfare Status Selection"""
     statuses = [
         ("一般戶 (16%)", "general"),
-        ("中低收入戶 (5%)", "mid_low"),
+        ("中低收入戶 (5%)", "midlow"),
         ("低收入戶 (0%)", "low")
     ]
     buttons = []
@@ -216,8 +216,8 @@ def get_calc_income_flex(district, level):
 def get_calc_result_flex(district, level, income_status):
     """Step 4: Final Output & Action"""
     care_caps = {2: 10020, 3: 15460, 4: 18580, 5: 24100, 6: 28070, 7: 32090, 8: 36180}
-    copay_rates = {"general": 0.16, "mid_low": 0.05, "low": 0.0}
-    status_labels = {"general": "一般戶", "mid_low": "中低收入戶", "low": "低收入戶"}
+    copay_rates = {"general": 0.16, "midlow": 0.05, "low": 0.0}
+    status_labels = {"general": "一般戶", "midlow": "中低收入戶", "low": "低收入戶"}
     
     level = int(level)
     care_cap = care_caps.get(level, 0)
