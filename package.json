@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/onpage-audit.mjs --strict",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "audit:seo": "node scripts/onpage-audit.mjs --strict"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",

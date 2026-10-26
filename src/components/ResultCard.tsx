@@ -1,4 +1,5 @@
 import { MapPin, Phone } from 'lucide-react';
+import type { SubsidyResult } from '../lib/subsidy';
 
 interface CareCenter {
   name: string;
@@ -7,11 +8,6 @@ interface CareCenter {
   capacity?: number;
 }
 
-interface SubsidyResult {
-  monthly_care_cap: number;
-  government_subsidy: number;
-  user_copay: number;
-}
 
 interface ResultCardProps {
   result: SubsidyResult;

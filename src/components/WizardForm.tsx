@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { ChevronRight, Calculator, User, Activity, DollarSign, Map as MapIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ResultCard from './ResultCard';
+import { calculateSubsidy as computeSubsidy, CMS_LEVEL_QUOTA, INCOME_OPTIONS, RULES_LAST_VERIFIED, type SubsidyResult } from '../lib/subsidy';
 
 
 const TAOYUAN_DISTRICTS = ['桃園區', '中壢區', '平鎮區', '八德區', '楊梅區', '蘆竹區', '大溪區', '龜山區', '大園區', '觀音區', '新屋區', '復興區'];
 
-// Use environment variable or fallback to your live Render backend URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://taoyuan-care-api.onrender.com';
 export default function WizardForm() {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -15,29 +14,15 @@ export default function WizardForm() {
     cms_level: 4,
     income_status: 'general'
   });
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<SubsidyResult | null>(null);
   const [centers, setCenters] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const calculateSubsidy = async () => {
     setLoading(true);
     try {
-      // 1. Call live Python backend on Render
-      let calcData = { monthly_care_cap: 18580, government_subsidy: 15607, user_copay: 2973 };
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/calculate-subsidy`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
-        if (response.ok) {
-          calcData = await response.json();
-        }
-      } catch (e) {
-        console.warn("Backend calculation endpoint unavailable, using fallback calculation.", e);
-      }
-      
-      setResult(calcData);
+      // 1. Calculate locally (same rules as the LINE bot) so results never depend on a cold-starting backend
+      setResult(computeSubsidy(formData.cms_level, formData.income_status));
 
       // 2. Filter Supabase Data by District
       const { data, error } = await supabase
@@ -47,10 +32,11 @@ export default function WizardForm() {
         .limit(5);
 
       if (error) throw error;
-      if (data) setCenters(data);
+      setCenters(data ?? []);
 
     } catch (error) {
       console.error("Error fetching data:", error);
+      setCenters([]);
     } finally {
       setLoading(false);
     }
@@ -101,9 +87,9 @@ export default function WizardForm() {
             value={formData.cms_level}
             onChange={(e) => setFormData({...formData, cms_level: Number(e.target.value)})}
           >
-            <option value={2}>輕度 (Level 2-3) - 需協助洗澡、家務</option>
-            <option value={4}>中度 (Level 4-5) - 需輪椅代步、上廁所需協助</option>
-            <option value={7}>重度 (Level 6-8) - 長期臥床、24小時需人看顧</option>
+            {Object.entries(CMS_LEVEL_QUOTA).map(([level, quota]) => (
+              <option key={level} value={Number(level)}>第 {level} 級（每月額度上限 NT$ {quota.toLocaleString()}）</option>
+            ))}
           </select>
           <button onClick={() => setStep(3)} className="w-full mt-4 bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700">下一步</button>
         </div>
@@ -117,9 +103,9 @@ export default function WizardForm() {
             value={formData.income_status}
             onChange={(e) => setFormData({...formData, income_status: e.target.value})}
           >
-            <option value="general">一般戶 (自負額 16%)</option>
-            <option value="mid_low">中低收入戶 (自負額 5%)</option>
-            <option value="low">低收入戶 (免自負額 0%)</option>
+            {INCOME_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}（自付 {Math.round(o.rate * 100)}%）</option>
+            ))}
           </select>
           <button 
             onClick={calculateSubsidy}
@@ -131,6 +117,7 @@ export default function WizardForm() {
         </div>
       )}
 
+      {result && <p className="mb-4 text-xs text-gray-500">這是試算，不是核定結果；實際 CMS 等級由照顧管理專員評估。規則查證日期：{RULES_LAST_VERIFIED}。請撥打 1966 長照專線預約評估。</p>}
       {/* Render extracted ResultCard component */}
       {result && (
         <ResultCard 
