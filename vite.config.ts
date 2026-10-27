@@ -7,6 +7,6 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    seoPlugin({ fallbackUrl: 'https://care-platform.vercel.app' }),
+    seoPlugin({ fallbackUrl: 'https://care-platform-fe.vercel.app' }),
   ],
 })
